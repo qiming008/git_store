@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta content="yes" name="apple-mobile-web-app-capable">
+  <meta name="viewport" content="width=device-width,height=device-height,inital-scale=1.0,maximum-scale=1.0,user-scalable=no">
+  <title>feinuo</title>
+  <link rel="stylesheet" href="https://unpkg.com/vant/lib/index.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+  <script src="https://unpkg.com/vant/lib/vant.min.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <!-- <script src="https://at.alicdn.com/t/font_750662_39ab9g62o0q.js"></script> -->
+
+</head>
+
+<body>
+  <div id="app"></div>
+</body>
+<script>
+  mui.init({
+    keyEventBind: {
+      backbutton: true,
+      longtap: true
+    }
+  })
+  var first = null
+  mui.back = function () {
+    var href = window.location.href
+    if (href.indexOf('login')== -1 && (href.indexOf('home') == -1|| href.indexOf('pro_list/') !=
+    -1||href.indexOf('client/') != -1)) {
+      history.go(-1)
+      return
+    }
+    if (!first) {
+      first = new Date().getTime()
+      mui.toast('再按一次退出应用')
+      // if((href.indexOf('home') == -1 || href.indexOf('pro_list/') != -1) && href.indexOf('login') == -1 ){
+      //   console.log(2)
+      //   history.go(-1)
+      // }
+      setTimeout(function () {
+        first = null
+      }, 1500)
+    } else {
+      if (new Date().getTime() - first <
+        1000) {
+        plus.runtime.quit()
+      }
+    }
+  }
+
+
+  var shares = null,
+    sharewx = null;
+
+  var _system;
+  // 监听plusready事件
+  document.addEventListener("plusready", function () {
+    //判断系统
+    if (plus.os.name == "Android") {
+      //这个是安卓操作系统
+      _system = 1;
+    }
+    if (plus.os.name == "iOS") {
+　　　　//这个是ios操作系统
+      _system = 2;
+    }
+
+    // 扩展API加载完毕，现在可以正常调用扩展API
+    plus.share.getServices(function (s) {
+      shares = s;
+      for (var i in s) {
+        if ('weixin' == s[i].id) {
+          sharewx = s[i]
+        }
+      }
+    }, function (e) {
+      alert("获取分享服务列表失败：" + e.message);
+    });
+    // plus.runtime.setBadgeNumber(8)
+    // var ShortcutBadger = plus.android.importClass("me.leolin.shortcutbadger.ShortcutBadger");
+    // var context = plus.android.runtimeMainActivity();
+    // ShortcutBadger.applyCount(context, 99);
+    // 检查更新
+    upgrade_app_wgt();
+    
+    //推送
+    // var info = plus.push.getClientInfo();
+    // alert( JSON.stringify( info ) );
+    
+    plus.runtime.setBadgeNumber(0);
+    plus.push.setAutoNotification(true);
+
+    // document.addEventListener("newintent", function() {
+    //     openWebviewFromOthers();
+    // });
+    //监听推送消息接收
+    plus.push.addEventListener('receive', function(msg) {
+      let m = JSON.parse(msg.payload)
+      // try {
+        console.log(plus.os.name)
+        if(plus.os.name != "iOS") return;
+        if(m && m.url) {
+          alert(m.url)
+          mui.confirm(msg.content, msg.title, ['立即查看', '知道了'], function(e) {
+            if(e.index > 0) return;
+            redirect(m.url);
+          });
+        } else {
+          mui.alert(msg.content, msg.title);
+        }
+      // } catch(e) {
+      //   alert(e.message);
+      // }
+    });
+    //监听点击推送事件
+    plus.push.addEventListener('click', function(msg) {
+      alert( 'click:' + JSON.stringify( msg ) );
+      try {
+        if(plus.os.name == "iOS") {
+            var data = eval('(' + msg.payload.payload + ')');
+        } else {
+            var data = eval('(' + msg.payload + ')');
+        }
+        pushCallback(data);
+      } catch(e) {
+        alert(e.message);
+      }
+    });
+  }, false)
+
+  //推送执行方法
+  function pushCallback(data) {
+    alert(data.type);
+    try {
+      
+      if(data.type == 'openWindow') {
+        data.url && redirect(data.url);
+      }
+    } catch(e) {
+      alert(e.message);
+    }
+  }
+  function redirect(url){
+    window.location.hash = url
+  }
+  function openWebviewFromOthers() {
+    // var args = plus.runtime.arguments;
+    // alert('openWebviewFromOthers')
+    // console.log(args)
+    // if(args) {
+    //     pushGetRun(args);
+    // }
+  }
+  var banben_number=0;
+  function upgrade_app_wgt() {
+    plus.runtime.getProperty(plus.runtime.appid, function (inf) {
+      if (plus.os.name != "iOS") {
+        checkUpdate(inf.version);
+      }
+      banben_number = inf.version
+      //sessionStorage.setItem('upgrade','1');
+    });
+  }
+
+
+  var _checkUrl = 'http://web.51fth.com/fth-fino/version/typeversion/1/1/';
+
+  //需要传递当前的版本
+  function checkUpdate(wgtVer) {
+    plus.nativeUI.showWaiting("检测更新...");
+    mui.ajax(_checkUrl + _system, {
+      dataType: "json", type: 'GET',
+      success: function (json) {
+        plus.nativeUI.closeWaiting();
+        if (parseInt(json[0].version.replace(/\./g, '')) > parseInt(wgtVer.replace(/\./g, ''))) {
+          //可以升级
+          plus.nativeUI.confirm("检查到当前版本有最新更新，下载升级？",
+            function (event) {
+              if (event.index == 0) {
+                downWgt(json[0].route); //下载更新版的地址
+              }
+            }, '系统消息', ['马上升级', '下次再说']);
+        } else {
+          // plus.nativeUI.toast("无新版本可更新！");
+        }
+      },
+      error: function (xhr, error) {
+        plus.nativeUI.closeWaiting();
+        plus.nativeUI.toast('检测更新失败！');
+      }
+    });
+  }
+
+  // 下载wgt文件
+  function downWgt(wgtUrl) {
+    plus.nativeUI.showWaiting("下载更新文件...");
+    plus.downloader.createDownload(wgtUrl, {}, function (d, status) {
+      if (status == 200) {
+        //console.log("下载wgt成功："+d.filename);
+        installWgt(d.filename); // 安装wgt包
+      } else {
+        //console.log("下载wgt失败！");
+        plus.nativeUI.alert("下载更新失败！");
+      }
+      plus.nativeUI.closeWaiting();
+    }).start();
+  }
+  // 更新应用资源
+  function installWgt(path) {
+    plus.nativeUI.showWaiting("安装更新文件...");
+    plus.runtime.install(path, {}, function () {
+      plus.nativeUI.closeWaiting();
+      plus.nativeUI.alert("应用资源更新完成！", function () {
+        plus.runtime.restart();
+      });
+    }, function (e) {
+      plus.nativeUI.closeWaiting();
+      plus.nativeUI.alert("安装更新文件失败[" + e.code + "]：" + e.message);
+    });
+  }
+  //传入图片路径，返回base64
+  function getBase64Image(img) {
+    var canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    var ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, img.width, img.height);
+    var ext = img.src.substring(img.src.lastIndexOf(".")+1).toLowerCase();
+    var dataURL = canvas.toDataURL("image/"+ext);
+    return dataURL;
+  }
+
+</script>
+</html>
